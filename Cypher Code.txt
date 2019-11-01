@@ -47,14 +47,55 @@ return a,b,t
 
 
 
-MATCH (a:BIC)-[p:Parent]->(b:Account)-[tr:Trasanction]->(c:Account)
-return a.bic as sender, COUNT(*) AS frequency,
-sum(toInteger(tr.amount)) as total,c.accountnumber as acct
-Match (e:BIC)-[Parent]->(f:Account)
-where f.accountnumber=acct
-return sender,e.bic as receiver,sum(frequency) as freq,
-sum(total) as tot
 
 
+
+
+load csv with headers from 'https://raw.githubusercontent.com/zanwar369/Crunch-a-thon/master/Wires_Updated_2.csv' as row
+Merge (a:Account {accountnumber:row.ORD_BK_ACC_NUM})
+ON CREATE SET a.jurisdiction=coalesce(row.ORD_BK_JUR,"Unknown")
+ON CREATE SET 
+a.name=row.ORD_CUS_NM
+Merge (b:Account {accountnumber:row.BEN_CUS_ACCT})
+ON CREATE SET b.jurisdiction=coalesce(row.BEN_INS_JUR,"Unknown")
+ON CREATE SET 
+b.name=row.BEN_CUS_NM
+Merge (c:BIC {bic:row.ORD_BK_BIC}) 
+ON CREATE SET c.jurisdiction=coalesce(row.ORD_BK_JUR,"Unknown")
+Merge (d:BIC {bic:row.BEN_INS_BIC}) 
+ON Create Set d.jurisdiction=coalesce(row.BEN_INS_JUR,"Unknown")
+
+WITH row 
+MATCH (b:BIC {bic: row.ORD_BK_BIC})
+MATCH (a:Account {accountnumber:row.ORD_BK_ACC_NUM})
+MERGE (b)-[pu:Parent]->(a)
+
+with row 
+MATCH (b:BIC {bic: row.BEN_INS_BIC})
+MATCH (a:Account {accountnumber:row.BEN_CUS_ACCT})
+MERGE (b)-[pu:Parent]->(a)
+
+with row
+MATCH (a:Account {accountnumber: row.ORD_BK_ACC_NUM})
+MATCH (b:Account {accountnumber:row.BEN_CUS_ACCT})
+Merge (a)-[tr:Transaction {amount:0}]->(b)
+set tr.amount=tr.amount+toInteger(row.AMOUNT)
+
+
+
+
+
+
+
+
+
+load csv with headers from 'https://raw.githubusercontent.com/zanwar369/Crunch-a-thon/master/WiresAgg.csv' as row
+Merge (a:AccAgg {nameagg:row.ORD_CUS_NM})
+Merge (b:AccAgg {nameagg:row.BEN_CUS_NM})
+
+with row
+MATCH (a:AccAgg {nameagg:row.ORD_CUS_NM})
+MATCH (b:AccAgg {nameagg:row.BEN_CUS_NM})
+Create (a)-[tr:TrAgg {amountagg:toInteger(row.AMOUNT), frequency:toInteger(row.TRN_DATE)}]->(b)
 
 
